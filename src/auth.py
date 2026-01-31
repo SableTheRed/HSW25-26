@@ -65,7 +65,13 @@ def run_loopback_server():
     thread.start()
     return server, thread
 
-def main():
+def login():
+    """
+    Prompts the user to login via OIDC in the browser.
+
+    Returns:
+        tuple: (sub, name, access_token, refresh_token, id_token, expires_in)
+    """
     if not ISSUER:
         raise ValueError("OIDC_ISSUER environment variable is required")
     if not CLIENT_ID:
@@ -132,16 +138,16 @@ def main():
     userinfo_resp.raise_for_status()
     userinfo = userinfo_resp.json()
 
-    return {
-        "email": userinfo.get("email"),
-        "name": userinfo.get("name"),
-        "sub": userinfo.get("sub"),
-        "access_token": tokens.get("access_token"),
-        "refresh_token": tokens.get("refresh_token"),
-        "id_token": tokens.get("id_token"),
-        "expires_in": tokens.get("expires_in"),
-    }
+    sub = userinfo.get("sub")
+    name = userinfo.get("name")
+    access_token = tokens.get("access_token")
+    refresh_token = tokens.get("refresh_token")
+    id_token = tokens.get("id_token")
+    expires_in = tokens.get("expires_in")
+
+    return sub, name, access_token, refresh_token, id_token, expires_in
+
 
 if __name__ == "__main__":
-    result = main()
-    print(f"Signed in! Info: {result}")
+    sub, name, access_token, refresh_token, id_token, expires_in = login()
+    print(f"Signed in as {name} (sub: {sub})")
