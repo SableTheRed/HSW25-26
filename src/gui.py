@@ -5,103 +5,566 @@ import threading
 from auth import login as oidc_login
 
 
-class HomePage(tk.Frame):
-    """Home page displayed after successful login."""
+class BasePage(tk.Frame):
+    """Base class for content pages with a back button."""
 
-    def __init__(self, parent, user_name):
+    def __init__(self, parent, title, navigate_callback):
         super().__init__(parent, bg="#1a1a2e")
-        self.user_name = user_name
-        self._create_widgets()
+        self.navigate_callback = navigate_callback
+        self._create_header(title)
 
-    def _create_widgets(self):
-        # Hello header
-        hello_label = tk.Label(
-            self,
-            text=f"Hello {self.user_name}",
+    def _create_header(self, title):
+        header_frame = tk.Frame(self, bg="#1a1a2e")
+        header_frame.pack(fill="x", padx=40, pady=(30, 20))
+
+        back_btn = tk.Frame(header_frame, bg="#252542", cursor="hand2")
+        back_btn.pack(side="left")
+
+        back_inner = tk.Label(
+            back_btn,
+            text="\u2190  Back",
+            font=("Segoe UI", 11),
+            bg="#252542",
+            fg="#4ecca3",
+            padx=15,
+            pady=8,
+            cursor="hand2"
+        )
+        back_inner.pack()
+
+        def on_enter(e):
+            back_btn.configure(bg="#2f2f52")
+            back_inner.configure(bg="#2f2f52")
+
+        def on_leave(e):
+            back_btn.configure(bg="#252542")
+            back_inner.configure(bg="#252542")
+
+        for widget in [back_btn, back_inner]:
+            widget.bind("<Enter>", on_enter)
+            widget.bind("<Leave>", on_leave)
+            widget.bind("<Button-1>", lambda e: self.navigate_callback("home"))
+
+        title_label = tk.Label(
+            header_frame,
+            text=title,
             font=("Segoe UI", 28, "bold"),
             bg="#1a1a2e",
             fg="#eee"
         )
-        hello_label.pack(pady=(30, 40))
+        title_label.pack(side="left", padx=(25, 0))
 
-        # Sections container
-        sections_frame = tk.Frame(self, bg="#1a1a2e")
-        sections_frame.pack(fill="both", expand=True, padx=40)
 
-        # Configure grid columns to be equal width
-        sections_frame.grid_columnconfigure(0, weight=1)
-        sections_frame.grid_columnconfigure(1, weight=1)
-        sections_frame.grid_columnconfigure(2, weight=1)
+class JournalPage(BasePage):
+    """Journal page."""
 
-        # Journal section
-        journal_frame = tk.Frame(sections_frame, bg="#2a2a4e", cursor="hand2")
-        journal_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        journal_icon = tk.Label(
-            journal_frame,
-            text="\U0001F4D3",  # Notebook emoji
-            font=("Segoe UI Emoji", 36),
-            bg="#2a2a4e"
-        )
-        journal_icon.pack(pady=(20, 10))
-        journal_label = tk.Label(
-            journal_frame,
-            text="View Journal",
-            font=("Segoe UI", 14, "bold"),
-            bg="#2a2a4e",
+    def __init__(self, parent, navigate_callback):
+        super().__init__(parent, "Journal", navigate_callback)
+        self._create_content()
+
+    def _create_content(self):
+        # Content container
+        content = tk.Frame(self, bg="#1a1a2e")
+        content.pack(fill="both", expand=True, padx=40, pady=(10, 30))
+
+        # New entry section
+        entry_frame = tk.Frame(content, bg="#252542")
+        entry_frame.pack(fill="both", expand=True)
+
+        entry_inner = tk.Frame(entry_frame, bg="#252542")
+        entry_inner.pack(fill="both", expand=True, padx=30, pady=25)
+
+        entry_label = tk.Label(
+            entry_inner,
+            text="New Journal Entry",
+            font=("Segoe UI", 18, "bold"),
+            bg="#252542",
             fg="#eee"
         )
-        journal_label.pack(pady=(0, 20))
+        entry_label.pack(anchor="w", pady=(0, 5))
+
+        entry_sublabel = tk.Label(
+            entry_inner,
+            text="Express your thoughts and feelings freely",
+            font=("Segoe UI", 11),
+            bg="#252542",
+            fg="#888"
+        )
+        entry_sublabel.pack(anchor="w", pady=(0, 20))
+
+        # Text box for journal entry
+        text_container = tk.Frame(entry_inner, bg="#1a1a2e", padx=2, pady=2)
+        text_container.pack(fill="both", expand=True, pady=(0, 20))
+
+        self.entry_text = tk.Text(
+            text_container,
+            font=("Segoe UI", 12),
+            bg="#1a1a2e",
+            fg="#eee",
+            insertbackground="#4ecca3",
+            relief="flat",
+            padx=15,
+            pady=15,
+            wrap="word",
+            highlightthickness=0
+        )
+        self.entry_text.pack(fill="both", expand=True)
+        self.entry_text.insert("1.0", "How are you feeling today?")
+        self.entry_text.config(fg="#666")
+        self.entry_text.bind("<FocusIn>", self._clear_placeholder)
+
+        # Button row
+        btn_frame = tk.Frame(entry_inner, bg="#252542")
+        btn_frame.pack(fill="x")
+
+        # Submit button
+        submit_btn = tk.Button(
+            btn_frame,
+            text="Save Entry",
+            font=("Segoe UI", 12, "bold"),
+            bg="#4ecca3",
+            fg="#1a1a2e",
+            activebackground="#3dbb92",
+            activeforeground="#1a1a2e",
+            relief="flat",
+            padx=30,
+            pady=12,
+            cursor="hand2"
+        )
+        submit_btn.pack(side="right")
+
+        # Character count (optional enhancement)
+        char_label = tk.Label(
+            btn_frame,
+            text="Take your time...",
+            font=("Segoe UI", 10),
+            bg="#252542",
+            fg="#666"
+        )
+        char_label.pack(side="left")
+
+    def _clear_placeholder(self, event):
+        if self.entry_text.get("1.0", "end-1c") == "How are you feeling today?":
+            self.entry_text.delete("1.0", "end")
+            self.entry_text.config(fg="#eee")
+
+
+class InsightsPage(BasePage):
+    """Insights page."""
+
+    def __init__(self, parent, navigate_callback):
+        super().__init__(parent, "Insights", navigate_callback)
+        self._create_content()
+
+    def _create_content(self):
+        # Content container
+        content = tk.Frame(self, bg="#1a1a2e")
+        content.pack(fill="both", expand=True, padx=40, pady=(10, 30))
+
+        # Stats row
+        stats_frame = tk.Frame(content, bg="#1a1a2e")
+        stats_frame.pack(fill="x", pady=(0, 20))
+
+        stats_frame.grid_columnconfigure(0, weight=1, uniform="stat")
+        stats_frame.grid_columnconfigure(1, weight=1, uniform="stat")
+        stats_frame.grid_columnconfigure(2, weight=1, uniform="stat")
+
+        stats = [
+            ("7", "Day Streak", "#4ecca3"),
+            ("23", "Total Entries", "#4361ee"),
+            ("85%", "Positive Days", "#f9c74f"),
+        ]
+
+        for i, (value, label, color) in enumerate(stats):
+            stat_card = tk.Frame(stats_frame, bg="#252542")
+            stat_card.grid(row=0, column=i, padx=8, pady=5, sticky="nsew")
+
+            inner = tk.Frame(stat_card, bg="#252542")
+            inner.pack(expand=True, pady=25)
+
+            val_label = tk.Label(
+                inner,
+                text=value,
+                font=("Segoe UI", 36, "bold"),
+                bg="#252542",
+                fg=color
+            )
+            val_label.pack()
+
+            desc_label = tk.Label(
+                inner,
+                text=label,
+                font=("Segoe UI", 12),
+                bg="#252542",
+                fg="#888"
+            )
+            desc_label.pack(pady=(5, 0))
 
         # Insights section
-        insights_frame = tk.Frame(sections_frame, bg="#2a2a4e", cursor="hand2")
-        insights_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
-        insights_icon = tk.Label(
-            insights_frame,
-            text="\U0001F4A1",  # Light bulb emoji
-            font=("Segoe UI Emoji", 36),
-            bg="#2a2a4e"
-        )
-        insights_icon.pack(pady=(20, 10))
         insights_label = tk.Label(
-            insights_frame,
-            text="Insights",
-            font=("Segoe UI", 14, "bold"),
-            bg="#2a2a4e",
+            content,
+            text="Recent Patterns",
+            font=("Segoe UI", 16, "bold"),
+            bg="#1a1a2e",
             fg="#eee"
         )
-        insights_label.pack(pady=(0, 20))
+        insights_label.pack(anchor="w", pady=(20, 15))
 
-        # History section
-        history_frame = tk.Frame(sections_frame, bg="#2a2a4e", cursor="hand2")
-        history_frame.grid(row=0, column=2, padx=10, pady=10, sticky="nsew")
-        history_icon = tk.Label(
-            history_frame,
-            text="\U0001F551",  # Clock emoji
-            font=("Segoe UI Emoji", 36),
-            bg="#2a2a4e"
+        patterns = [
+            ("You tend to feel more positive on weekends", "\u2605"),
+            ("Morning journaling correlates with better mood", "\u263C"),
+            ("Exercise days show 40% more positive entries", "\u2665"),
+        ]
+
+        for text, icon in patterns:
+            pattern_frame = tk.Frame(content, bg="#252542")
+            pattern_frame.pack(fill="x", pady=5)
+
+            inner = tk.Frame(pattern_frame, bg="#252542")
+            inner.pack(fill="x", padx=20, pady=15)
+
+            icon_label = tk.Label(
+                inner,
+                text=icon,
+                font=("DejaVu Sans", 18),
+                bg="#252542",
+                fg="#4ecca3"
+            )
+            icon_label.pack(side="left", padx=(0, 15))
+
+            text_label = tk.Label(
+                inner,
+                text=text,
+                font=("Segoe UI", 12),
+                bg="#252542",
+                fg="#eee"
+            )
+            text_label.pack(side="left")
+
+
+class HistoryPage(BasePage):
+    """History page."""
+
+    CARD_BG = "#252542"
+    CARD_HOVER = "#2f2f52"
+
+    def __init__(self, parent, navigate_callback):
+        super().__init__(parent, "History", navigate_callback)
+        self._create_content()
+
+    def _create_content(self):
+        # Sample journal entries (most recent first)
+        sample_entries = [
+            {"date": "January 31, 2026", "preview": "Today was a productive day. I managed to complete all my tasks and even had time for some self-care."},
+            {"date": "January 30, 2026", "preview": "Feeling a bit tired but optimistic about the week ahead. Planning to focus on balance."},
+            {"date": "January 29, 2026", "preview": "Had a great conversation with a friend today. It reminded me how important connections are."},
+            {"date": "January 28, 2026", "preview": "Started a new project at work. Excited about the possibilities and challenges ahead."},
+            {"date": "January 27, 2026", "preview": "Took some time for self-reflection. I realized that I need to prioritize what matters most."},
+            {"date": "January 26, 2026", "preview": "Went for a long walk in the park. Nature always helps me think more clearly."},
+            {"date": "January 25, 2026", "preview": "Challenging day but I learned a lot from the experience. Growth comes from discomfort."},
+        ]
+
+        # Content container
+        content = tk.Frame(self, bg="#1a1a2e")
+        content.pack(fill="both", expand=True, padx=40, pady=(10, 30))
+
+        # Subtitle
+        subtitle = tk.Label(
+            content,
+            text=f"{len(sample_entries)} journal entries",
+            font=("Segoe UI", 12),
+            bg="#1a1a2e",
+            fg="#888"
         )
-        history_icon.pack(pady=(20, 10))
-        history_label = tk.Label(
-            history_frame,
-            text="History",
-            font=("Segoe UI", 14, "bold"),
-            bg="#2a2a4e",
+        subtitle.pack(anchor="w", pady=(0, 15))
+
+        # Create scrollable container
+        container = tk.Frame(content, bg="#1a1a2e")
+        container.pack(fill="both", expand=True)
+
+        # Canvas for scrolling
+        canvas = tk.Canvas(container, bg="#1a1a2e", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg="#1a1a2e")
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Enable mouse wheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _on_mousewheel_linux(event):
+            if event.num == 4:
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                canvas.yview_scroll(1, "units")
+
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        canvas.bind_all("<Button-4>", _on_mousewheel_linux)
+        canvas.bind_all("<Button-5>", _on_mousewheel_linux)
+
+        # Pack canvas and scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Add entries to scrollable frame
+        for i, entry in enumerate(sample_entries):
+            entry_frame = tk.Frame(scrollable_frame, bg=self.CARD_BG, cursor="hand2")
+            entry_frame.pack(fill="x", pady=6)
+
+            entry_inner = tk.Frame(entry_frame, bg=self.CARD_BG)
+            entry_inner.pack(fill="x", padx=25, pady=20)
+
+            # Header row with date and day indicator
+            header = tk.Frame(entry_inner, bg=self.CARD_BG)
+            header.pack(fill="x")
+
+            date_label = tk.Label(
+                header,
+                text=entry["date"],
+                font=("Segoe UI", 14, "bold"),
+                bg=self.CARD_BG,
+                fg="#4ecca3"
+            )
+            date_label.pack(side="left")
+
+            if i == 0:
+                today_badge = tk.Label(
+                    header,
+                    text="Today",
+                    font=("Segoe UI", 9, "bold"),
+                    bg="#4ecca3",
+                    fg="#1a1a2e",
+                    padx=8,
+                    pady=2
+                )
+                today_badge.pack(side="right")
+
+            preview_label = tk.Label(
+                entry_inner,
+                text=entry["preview"],
+                font=("Segoe UI", 12),
+                bg=self.CARD_BG,
+                fg="#aaa",
+                wraplength=800,
+                justify="left",
+                anchor="w"
+            )
+            preview_label.pack(anchor="w", pady=(10, 0), fill="x")
+
+            # Hover effects
+            all_widgets = [entry_frame, entry_inner, header, date_label, preview_label]
+
+            def on_enter(e, widgets=all_widgets):
+                for w in widgets:
+                    try:
+                        w.configure(bg=self.CARD_HOVER)
+                    except:
+                        pass
+
+            def on_leave(e, widgets=all_widgets):
+                for w in widgets:
+                    try:
+                        w.configure(bg=self.CARD_BG)
+                    except:
+                        pass
+
+            for widget in all_widgets:
+                widget.bind("<Enter>", on_enter)
+                widget.bind("<Leave>", on_leave)
+
+        # Update canvas width when container resizes
+        def _configure_canvas(event):
+            canvas.itemconfig(canvas.find_all()[0], width=event.width)
+
+        canvas.bind("<Configure>", _configure_canvas)
+
+
+class HomePage(tk.Frame):
+    """Home page displayed after successful login."""
+
+    CARD_BG = "#252542"
+    CARD_HOVER = "#2f2f52"
+
+    def __init__(self, parent, user_name, navigate_callback=None):
+        super().__init__(parent, bg="#1a1a2e")
+        self.user_name = user_name
+        self.navigate_callback = navigate_callback
+        self._create_widgets()
+
+    def _create_card(self, parent, icon, icon_color, label_text, nav_target):
+        """Create a styled navigation card."""
+        card = tk.Frame(parent, bg=self.CARD_BG, cursor="hand2")
+
+        # Inner container for padding
+        inner = tk.Frame(card, bg=self.CARD_BG)
+        inner.pack(fill="both", expand=True, padx=25, pady=30)
+
+        icon_label = tk.Label(
+            inner,
+            text=icon,
+            font=("DejaVu Sans", 42),
+            bg=self.CARD_BG,
+            fg=icon_color,
+            cursor="hand2"
+        )
+        icon_label.pack(expand=True)
+
+        text_label = tk.Label(
+            inner,
+            text=label_text,
+            font=("Segoe UI", 16, "bold"),
+            bg=self.CARD_BG,
+            fg="#eee",
+            cursor="hand2"
+        )
+        text_label.pack(pady=(15, 0))
+
+        # Hover effects
+        def on_enter(e):
+            card.configure(bg=self.CARD_HOVER)
+            inner.configure(bg=self.CARD_HOVER)
+            icon_label.configure(bg=self.CARD_HOVER)
+            text_label.configure(bg=self.CARD_HOVER)
+
+        def on_leave(e):
+            card.configure(bg=self.CARD_BG)
+            inner.configure(bg=self.CARD_BG)
+            icon_label.configure(bg=self.CARD_BG)
+            text_label.configure(bg=self.CARD_BG)
+
+        for widget in [card, inner, icon_label, text_label]:
+            widget.bind("<Enter>", on_enter)
+            widget.bind("<Leave>", on_leave)
+            widget.bind("<Button-1>", lambda e, t=nav_target: self._navigate(t))
+
+        return card
+
+    def _create_widgets(self):
+        # Main content container with padding
+        content = tk.Frame(self, bg="#1a1a2e")
+        content.pack(fill="both", expand=True, padx=50, pady=30)
+
+        # Hello header
+        header_frame = tk.Frame(content, bg="#1a1a2e")
+        header_frame.pack(fill="x", pady=(10, 30))
+
+        hello_label = tk.Label(
+            header_frame,
+            text=f"Hello, {self.user_name}",
+            font=("Segoe UI", 32, "bold"),
+            bg="#1a1a2e",
             fg="#eee"
         )
-        history_label.pack(pady=(0, 20))
+        hello_label.pack(anchor="w")
 
-        # Action for today section at the bottom
-        action_frame = tk.Frame(self, bg="#3a3a5e")
-        action_frame.pack(fill="x", side="bottom", pady=20, padx=40)
-        action_label = tk.Label(
-            action_frame,
-            text="Action for today: Take a moment to reflect on your goals",
-            font=("Segoe UI", 11),
-            bg="#3a3a5e",
-            fg="#4ecca3",
-            pady=15
+        subtitle = tk.Label(
+            header_frame,
+            text="What would you like to do today?",
+            font=("Segoe UI", 14),
+            bg="#1a1a2e",
+            fg="#888"
         )
-        action_label.pack()
+        subtitle.pack(anchor="w", pady=(5, 0))
+
+        # Sections container - takes up available space
+        sections_frame = tk.Frame(content, bg="#1a1a2e")
+        sections_frame.pack(fill="both", expand=True, pady=(10, 20))
+
+        # Configure grid for responsive layout
+        sections_frame.grid_columnconfigure(0, weight=1, uniform="card")
+        sections_frame.grid_columnconfigure(1, weight=1, uniform="card")
+        sections_frame.grid_columnconfigure(2, weight=1, uniform="card")
+        sections_frame.grid_rowconfigure(0, weight=1)
+
+        # Create cards
+        journal_card = self._create_card(
+            sections_frame, "\u270D", "#4ecca3", "Journal", "journal"
+        )
+        journal_card.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+
+        insights_card = self._create_card(
+            sections_frame, "\u2605", "#f9c74f", "Insights", "insights"
+        )
+        insights_card.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+
+        history_card = self._create_card(
+            sections_frame, "\u25F4", "#4361ee", "History", "history"
+        )
+        history_card.grid(row=0, column=2, padx=10, pady=10, sticky="nsew")
+
+        # Action for today section - enhanced design
+        action_outer = tk.Frame(content, bg="#1a1a2e")
+        action_outer.pack(fill="x", pady=(10, 10))
+
+        action_frame = tk.Frame(action_outer, bg="#1e3a5f")
+        action_frame.pack(fill="x", ipady=5)
+
+        action_inner = tk.Frame(action_frame, bg="#1e3a5f")
+        action_inner.pack(fill="x", padx=30, pady=25)
+
+        # Left side - icon and label
+        left_frame = tk.Frame(action_inner, bg="#1e3a5f")
+        left_frame.pack(side="left", fill="y")
+
+        action_icon = tk.Label(
+            left_frame,
+            text="\u2714",  # Checkmark
+            font=("DejaVu Sans", 28),
+            bg="#1e3a5f",
+            fg="#4ecca3"
+        )
+        action_icon.pack(side="left", padx=(0, 20))
+
+        text_frame = tk.Frame(left_frame, bg="#1e3a5f")
+        text_frame.pack(side="left", fill="y")
+
+        action_title = tk.Label(
+            text_frame,
+            text="Action for Today",
+            font=("Segoe UI", 11, "bold"),
+            bg="#1e3a5f",
+            fg="#4ecca3"
+        )
+        action_title.pack(anchor="w")
+
+        action_text = tk.Label(
+            text_frame,
+            text="Take a moment to reflect on your goals and write about your feelings",
+            font=("Segoe UI", 14),
+            bg="#1e3a5f",
+            fg="#eee",
+            wraplength=600,
+            justify="left"
+        )
+        action_text.pack(anchor="w", pady=(5, 0))
+
+        # Right side - button
+        action_btn = tk.Button(
+            action_inner,
+            text="Start Now",
+            font=("Segoe UI", 11, "bold"),
+            bg="#4ecca3",
+            fg="#1a1a2e",
+            activebackground="#3dbb92",
+            activeforeground="#1a1a2e",
+            relief="flat",
+            padx=25,
+            pady=10,
+            cursor="hand2",
+            command=lambda: self._navigate("journal")
+        )
+        action_btn.pack(side="right", padx=(20, 0))
+
+    def _navigate(self, page):
+        if self.navigate_callback:
+            self.navigate_callback(page)
 
 
 class WelcomePage(tk.Tk):
@@ -113,6 +576,7 @@ class WelcomePage(tk.Tk):
         self.resizable(False, False)
 
         self.user_info = None
+        self.user_name = None
         self._setup_styles()
         self._create_widgets()
         self._center_window()
@@ -171,9 +635,10 @@ class WelcomePage(tk.Tk):
         # Logo/icon placeholder
         icon_label = tk.Label(
             main_frame,
-            text="🔐",
-            font=("Segoe UI Emoji", 48),
-            bg="#1a1a2e"
+            text="\u2302",  # House symbol
+            font=("DejaVu Sans", 48),
+            bg="#1a1a2e",
+            fg="#4ecca3"
         )
         icon_label.pack(pady=(20, 10))
 
@@ -245,17 +710,34 @@ class WelcomePage(tk.Tk):
             self.after(0, self._on_login_error, f"Login failed: {e}")
 
     def _on_login_success(self, name):
-        # Clear the login page widgets
+        self.user_name = name
+        self._navigate_to("home")
+
+    def _navigate_to(self, page):
+        # Clear current page
         for widget in self.winfo_children():
             widget.destroy()
 
-        # Resize window for home page
-        self.geometry("600x500")
-        self._center_window()
+        # Set minimum size on first navigation (after login)
+        if not hasattr(self, '_navigated'):
+            self._navigated = True
+            self.geometry("600x500")
+            self.resizable(True, True)
+            self._center_window()
 
-        # Show the home page
-        home_page = HomePage(self, name)
-        home_page.pack(fill="both", expand=True)
+        # Show the requested page
+        if page == "home":
+            new_page = HomePage(self, self.user_name, self._navigate_to)
+        elif page == "journal":
+            new_page = JournalPage(self, self._navigate_to)
+        elif page == "insights":
+            new_page = InsightsPage(self, self._navigate_to)
+        elif page == "history":
+            new_page = HistoryPage(self, self._navigate_to)
+        else:
+            return
+
+        new_page.pack(fill="both", expand=True)
 
     def _on_login_error(self, error_msg):
         self.status_label.configure(
