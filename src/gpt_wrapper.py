@@ -1,14 +1,11 @@
-from google import genai
-import os
+from google import genai  # type: ignore[import-untyped]
 
 class Wrapper:
     def __init__(self, system_prompt="You are emotionally supportive"):
         self.client = genai.Client()
         self.chat = self.client.chats.create(
             model="gemini-3-flash-preview",
-            config={
-                "system_instruction": system_prompt
-            }
+            config={"system_instruction": system_prompt}
         )
 
     def send(self, user_message: str) -> str:

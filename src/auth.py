@@ -1,12 +1,12 @@
 import base64
 import hashlib
-import json
 import os
 import secrets
 import threading
 import subprocess
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import cast
 from urllib.parse import urlencode, urlparse, parse_qs
 
 import requests
@@ -39,12 +39,17 @@ def make_pkce_pair():
     code_challenge = b64url(challenge)
     return code_verifier, code_challenge
 
+class OIDCCallbackServer(HTTPServer):
+    auth_code: str | None = None
+    auth_state: str | None = None
+
+
 class CallbackHandler(BaseHTTPRequestHandler):
-    # Store results on the server object
     def do_GET(self):
+        server = cast(OIDCCallbackServer, self.server)
         q = parse_qs(urlparse(self.path).query)
-        self.server.auth_code = q.get("code", [None])[0]
-        self.server.auth_state = q.get("state", [None])[0]
+        server.auth_code = q.get("code", [None])[0]
+        server.auth_state = q.get("state", [None])[0]
 
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
@@ -60,7 +65,7 @@ def get_openid_config(issuer: str) -> dict:
     return r.json()
 
 def run_loopback_server():
-    server = HTTPServer(("127.0.0.1", 0), CallbackHandler)  # 0 => pick free port
+    server = OIDCCallbackServer(("127.0.0.1", 0), CallbackHandler)  # 0 => pick free port
     thread = threading.Thread(target=server.handle_request, daemon=True)
     thread.start()
     return server, thread
