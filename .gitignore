@@ -1,2 +1,9 @@
-src/venv/
+# Virtual environments
 **/venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Environment variables (contains secrets)
+.env
