@@ -42,8 +42,8 @@ cur = con.cursor()
 
 # Create tables if not already present
 cur.execute("CREATE TABLE IF NOT EXISTS users(SUB text primary key, created_at datetime default current_timestamp)")
-cur.execute("CREATE TABLE IF NOT EXISTS journal_entries(entry_no integer primary key autoincrement, user_sub text, created_at datetime default current_timestamp, entry_text text, FOREIGN KEY (user_sub) REFERENCES users(SUB))")
-cur.execute("CREATE TABLE IF NOT EXISTS entry_values(value_set integer primary key autoincrement, journal_entry_no integer, created_at datetime default current_timestamp, happiness integer, stress integer, energy integer, focus integer, anxiety integer, FOREIGN KEY (journal_entry_no) REFERENCES journal_entries(entry), UNIQUE(journal_entry_no))")
+cur.execute("CREATE TABLE IF NOT EXISTS journal_entries(entry_no integer primary key autoincrement, user_sub text, created_at datetime default current_timestamp, entry_text text, FOREIGN KEY (user_sub) REFERENCES users(SUB) ON DELETE CASCADE)")
+cur.execute("CREATE TABLE IF NOT EXISTS entry_values(value_set integer primary key autoincrement, journal_entry_no integer, created_at datetime default current_timestamp, happiness integer, stress integer, energy integer, focus integer, anxiety integer, FOREIGN KEY (journal_entry_no) REFERENCES journal_entries(entry_no) ON DELETE CASCADE, UNIQUE(journal_entry_no))")
 con.commit()
 con.close()
 
@@ -80,7 +80,7 @@ def add_entry_values(values: EntryValues):
     con = get_connection()
     cur = con.cursor()
     cur.execute(
-        "INSERT INTO entry_values(journal_entry_no, created_at, happiness, stress, energy, focus, anxiety) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO entry_values(journal_entry_no, happiness, stress, energy, focus, anxiety) VALUES (?, ?, ?, ?, ?, ?)",
         (values.journal_entry_no, values.happiness, values.stress, values.energy, values.focus, values.anxiety),
     )
     con.commit()
@@ -101,7 +101,7 @@ def fetch_journal_entries(user_sub: str):
     return entries  # Return list of entries
 
 # fetch entry values for a journal entry
-def fetch_entry_values(entry_no: str):
+def fetch_entry_values(entry_no: int):
     con = get_connection()
     cur = con.cursor()
     cur.execute(
@@ -176,7 +176,7 @@ def update_entry_values(entry_no: int, happiness: int, stress: int, energy: int,
     con = get_connection()
     cur = con.cursor()
     cur.execute(
-        "UPDATE entry_values SET happiness=?, stress=?, energy=?, focus=?, anxiety=? WHERE journal_entry_no=?",
+        "UPDATE entry_values SET happiness=?, stress=?, energy=?, focus=?, anxiety=?, created_at=CURRENT_TIMESTAMP WHERE journal_entry_no=?",
         (happiness, stress, energy, focus, anxiety, entry_no),
     )
     con.commit()
