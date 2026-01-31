@@ -1,9 +1,4 @@
-# Virtual environments
-**/venv/
+venv/
 
-# Python bytecode
 __pycache__/
 *.pyc
-
-# Environment variables (contains secrets)
-.env
