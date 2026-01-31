@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
+import datetime
+import random
 
 from auth import login as oidc_login
 
@@ -453,7 +455,7 @@ class HomePage(tk.Frame):
 
         # Hello header
         header_frame = tk.Frame(content, bg="#1a1a2e")
-        header_frame.pack(fill="x", pady=(10, 30))
+        header_frame.pack(fill="x", pady=(10, 20))
 
         hello_label = tk.Label(
             header_frame,
@@ -473,9 +475,69 @@ class HomePage(tk.Frame):
         )
         subtitle.pack(anchor="w", pady=(5, 0))
 
+        # Action for today section - NOW ON TOP
+        action_frame = tk.Frame(content, bg="#1e3a5f")
+        action_frame.pack(fill="x", pady=(0, 20))
+
+        action_inner = tk.Frame(action_frame, bg="#1e3a5f")
+        action_inner.pack(fill="x", padx=30, pady=20)
+
+        # Left side - icon and label
+        left_frame = tk.Frame(action_inner, bg="#1e3a5f")
+        left_frame.pack(side="left", fill="y")
+
+        action_icon = tk.Label(
+            left_frame,
+            text="\u2714",  # Checkmark
+            font=("DejaVu Sans", 24),
+            bg="#1e3a5f",
+            fg="#4ecca3"
+        )
+        action_icon.pack(side="left", padx=(0, 15))
+
+        text_frame = tk.Frame(left_frame, bg="#1e3a5f")
+        text_frame.pack(side="left", fill="y")
+
+        action_title = tk.Label(
+            text_frame,
+            text="Action for Today",
+            font=("Segoe UI", 10, "bold"),
+            bg="#1e3a5f",
+            fg="#4ecca3"
+        )
+        action_title.pack(anchor="w")
+
+        action_text = tk.Label(
+            text_frame,
+            text="Take a moment to reflect on your goals and write about your feelings",
+            font=("Segoe UI", 13),
+            bg="#1e3a5f",
+            fg="#eee",
+            wraplength=500,
+            justify="left"
+        )
+        action_text.pack(anchor="w", pady=(3, 0))
+
+        # Right side - button
+        action_btn = tk.Button(
+            action_inner,
+            text="Start Now",
+            font=("Segoe UI", 11, "bold"),
+            bg="#4ecca3",
+            fg="#1a1a2e",
+            activebackground="#3dbb92",
+            activeforeground="#1a1a2e",
+            relief="flat",
+            padx=25,
+            pady=8,
+            cursor="hand2",
+            command=lambda: self._navigate("journal")
+        )
+        action_btn.pack(side="right", padx=(20, 0))
+
         # Sections container - takes up available space
         sections_frame = tk.Frame(content, bg="#1a1a2e")
-        sections_frame.pack(fill="both", expand=True, pady=(10, 20))
+        sections_frame.pack(fill="both", expand=True, pady=(0, 15))
 
         # Configure grid for responsive layout
         sections_frame.grid_columnconfigure(0, weight=1, uniform="card")
@@ -499,68 +561,170 @@ class HomePage(tk.Frame):
         )
         history_card.grid(row=0, column=2, padx=10, pady=10, sticky="nsew")
 
-        # Action for today section - enhanced design
-        action_outer = tk.Frame(content, bg="#1a1a2e")
-        action_outer.pack(fill="x", pady=(10, 10))
+        # GitHub-style activity tracker
+        self._create_activity_tracker(content)
 
-        action_frame = tk.Frame(action_outer, bg="#1e3a5f")
-        action_frame.pack(fill="x", ipady=5)
+    def _create_activity_tracker(self, parent):
+        """Create a GitHub-style activity tracker showing journal activity."""
+        tracker_frame = tk.Frame(parent, bg="#252542")
+        tracker_frame.pack(fill="x", pady=(5, 0))
 
-        action_inner = tk.Frame(action_frame, bg="#1e3a5f")
-        action_inner.pack(fill="x", padx=30, pady=25)
+        tracker_inner = tk.Frame(tracker_frame, bg="#252542")
+        tracker_inner.pack(fill="x", padx=20, pady=15)
 
-        # Left side - icon and label
-        left_frame = tk.Frame(action_inner, bg="#1e3a5f")
-        left_frame.pack(side="left", fill="y")
+        # Header
+        header = tk.Frame(tracker_inner, bg="#252542")
+        header.pack(fill="x", pady=(0, 12))
 
-        action_icon = tk.Label(
-            left_frame,
-            text="\u2714",  # Checkmark
-            font=("DejaVu Sans", 28),
-            bg="#1e3a5f",
-            fg="#4ecca3"
+        title = tk.Label(
+            header,
+            text="Journal Activity",
+            font=("Segoe UI", 12, "bold"),
+            bg="#252542",
+            fg="#eee"
         )
-        action_icon.pack(side="left", padx=(0, 20))
+        title.pack(side="left")
 
-        text_frame = tk.Frame(left_frame, bg="#1e3a5f")
-        text_frame.pack(side="left", fill="y")
+        # Sample data: days with journal entries (1 = journaled, 0 = no entry)
+        # Last 52 weeks worth of data for a full year view
+        random.seed(42)  # Consistent pattern
 
-        action_title = tk.Label(
-            text_frame,
-            text="Action for Today",
-            font=("Segoe UI", 11, "bold"),
-            bg="#1e3a5f",
-            fg="#4ecca3"
+        # Generate sample activity data (more recent = more likely to have entries)
+        today = datetime.date.today()
+        activity_data = {}
+        for i in range(365):
+            date = today - datetime.timedelta(days=i)
+            # Higher chance of journaling in recent days
+            probability = 0.7 if i < 30 else (0.5 if i < 90 else 0.3)
+            activity_data[date] = random.random() < probability
+
+        # Activity grid
+        grid_frame = tk.Frame(tracker_inner, bg="#252542")
+        grid_frame.pack(fill="x")
+
+        # Month labels
+        months_frame = tk.Frame(grid_frame, bg="#252542")
+        months_frame.pack(fill="x", pady=(0, 5))
+
+        # Add spacing for day labels
+        spacer = tk.Label(months_frame, text="", width=3, bg="#252542")
+        spacer.pack(side="left")
+
+        month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+        # Show last 12 months
+        current_month = today.month
+        for i in range(12):
+            month_idx = (current_month - 11 + i) % 12
+            month_label = tk.Label(
+                months_frame,
+                text=month_names[month_idx],
+                font=("Segoe UI", 8),
+                bg="#252542",
+                fg="#666",
+                width=4
+            )
+            month_label.pack(side="left", padx=(0, 15))
+
+        # Day labels and grid
+        content_frame = tk.Frame(grid_frame, bg="#252542")
+        content_frame.pack(fill="x")
+
+        # Day labels (Mon, Wed, Fri)
+        day_labels_frame = tk.Frame(content_frame, bg="#252542")
+        day_labels_frame.pack(side="left", padx=(0, 5))
+
+        for i, day in enumerate(["", "Mon", "", "Wed", "", "Fri", ""]):
+            lbl = tk.Label(
+                day_labels_frame,
+                text=day,
+                font=("Segoe UI", 7),
+                bg="#252542",
+                fg="#666",
+                width=3,
+                anchor="e"
+            )
+            lbl.pack(anchor="e")
+
+        # Activity squares
+        squares_frame = tk.Frame(content_frame, bg="#252542")
+        squares_frame.pack(side="left", fill="x", expand=True)
+
+        # Calculate starting point (go back to nearest Sunday, then 52 weeks)
+        days_since_sunday = today.weekday() + 1
+        if days_since_sunday == 7:
+            days_since_sunday = 0
+        start_date = today - datetime.timedelta(days=days_since_sunday + 52*7)
+
+        # Create 53 columns (weeks)
+        cell_size = 10
+        cell_pad = 2
+
+        for week in range(53):
+            week_frame = tk.Frame(squares_frame, bg="#252542")
+            week_frame.pack(side="left", padx=1)
+
+            for day in range(7):
+                current_date = start_date + datetime.timedelta(days=week*7 + day)
+
+                if current_date > today:
+                    # Future dates - empty
+                    color = "#252542"
+                elif current_date in activity_data and activity_data[current_date]:
+                    # Journaled - green
+                    color = "#4ecca3"
+                else:
+                    # No entry - dark
+                    color = "#1a1a2e"
+
+                cell = tk.Frame(
+                    week_frame,
+                    bg=color,
+                    width=cell_size,
+                    height=cell_size
+                )
+                cell.pack(pady=1)
+                cell.pack_propagate(False)
+
+        # Legend
+        legend_frame = tk.Frame(tracker_inner, bg="#252542")
+        legend_frame.pack(fill="x", pady=(10, 0))
+
+        less_label = tk.Label(
+            legend_frame,
+            text="Less",
+            font=("Segoe UI", 8),
+            bg="#252542",
+            fg="#666"
         )
-        action_title.pack(anchor="w")
+        less_label.pack(side="left")
 
-        action_text = tk.Label(
-            text_frame,
-            text="Take a moment to reflect on your goals and write about your feelings",
-            font=("Segoe UI", 14),
-            bg="#1e3a5f",
-            fg="#eee",
-            wraplength=600,
-            justify="left"
-        )
-        action_text.pack(anchor="w", pady=(5, 0))
+        # Legend squares
+        for color in ["#1a1a2e", "#2d6a4f", "#40916c", "#4ecca3"]:
+            sq = tk.Frame(legend_frame, bg=color, width=10, height=10)
+            sq.pack(side="left", padx=2)
+            sq.pack_propagate(False)
 
-        # Right side - button
-        action_btn = tk.Button(
-            action_inner,
-            text="Start Now",
-            font=("Segoe UI", 11, "bold"),
-            bg="#4ecca3",
-            fg="#1a1a2e",
-            activebackground="#3dbb92",
-            activeforeground="#1a1a2e",
-            relief="flat",
-            padx=25,
-            pady=10,
-            cursor="hand2",
-            command=lambda: self._navigate("journal")
+        more_label = tk.Label(
+            legend_frame,
+            text="More",
+            font=("Segoe UI", 8),
+            bg="#252542",
+            fg="#666"
         )
-        action_btn.pack(side="right", padx=(20, 0))
+        more_label.pack(side="left", padx=(3, 0))
+
+        # Stats on the right
+        total_entries = sum(1 for v in activity_data.values() if v)
+        stats_label = tk.Label(
+            legend_frame,
+            text=f"{total_entries} entries in the last year",
+            font=("Segoe UI", 9),
+            bg="#252542",
+            fg="#888"
+        )
+        stats_label.pack(side="right")
 
     def _navigate(self, page):
         if self.navigate_callback:
@@ -645,7 +809,7 @@ class WelcomePage(tk.Tk):
         # Title
         title_label = ttk.Label(
             main_frame,
-            text="Welcome",
+            text="Welcome to InsideOut",
             style="Title.TLabel"
         )
         title_label.pack(pady=(10, 5))
@@ -721,7 +885,8 @@ class WelcomePage(tk.Tk):
         # Set minimum size on first navigation (after login)
         if not hasattr(self, '_navigated'):
             self._navigated = True
-            self.geometry("600x500")
+            self.geometry("900x700")
+            self.minsize(850, 650)
             self.resizable(True, True)
             self._center_window()
 

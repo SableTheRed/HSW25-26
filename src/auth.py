@@ -54,7 +54,55 @@ class CallbackHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.end_headers()
-        self.wfile.write(b"<h1>Signed in</h1>You can close this window.")
+
+        # HTML with auto-close JavaScript
+        html = b"""<!DOCTYPE html>
+<html>
+<head>
+    <title>InsideOut - Signed In</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+        }
+        .checkmark {
+            font-size: 64px;
+            color: #4ecca3;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #4ecca3;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="checkmark">&#10004;</div>
+        <h1>Signed In Successfully</h1>
+        <p>This window will close automatically...</p>
+    </div>
+    <script>
+        setTimeout(function() {
+            window.close();
+        }, 1500);
+    </script>
+</body>
+</html>"""
+        self.wfile.write(html)
 
     def log_message(self, *args, **kwargs):
         return  # quiet
