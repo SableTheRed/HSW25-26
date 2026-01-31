@@ -1,6 +1,14 @@
 # Inside Out!
 *Insert punchy tagline here*
 
+#Team Members
+
+Anya Morris 
+Harry Taylor 
+Emre Acarsoy 
+Isobel Ryder
+Alya Ormon 
+
 # Instructions
 Navigate into `src` directory.
 ```
