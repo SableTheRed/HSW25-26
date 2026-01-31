@@ -11,8 +11,9 @@ from urllib.parse import urlencode, urlparse, parse_qs
 
 import requests
 
-ISSUER = os.environ["OIDC_ISSUER"] 
-CLIENT_ID = os.environ["OIDC_CLIENT_ID"] 
+ISSUER = os.environ.get("OIDC_ISSUER")
+CLIENT_ID = os.environ.get("OIDC_CLIENT_ID")
+CLIENT_SECRET = os.environ.get("OIDC_CLIENT_SECRET") 
 
 SCOPES = ["openid", "email", "profile"]
 
@@ -65,9 +66,17 @@ def run_loopback_server():
     return server, thread
 
 def main():
+    if not ISSUER:
+        raise ValueError("OIDC_ISSUER environment variable is required")
+    if not CLIENT_ID:
+        raise ValueError("OIDC_CLIENT_ID environment variable is required")
+    if not CLIENT_SECRET:
+        raise ValueError("OIDC_CLIENT_SECRET environment variable is required")
+
     cfg = get_openid_config(ISSUER)
     auth_endpoint = cfg["authorization_endpoint"]
     token_endpoint = cfg["token_endpoint"]
+    userinfo_endpoint = cfg["userinfo_endpoint"]
 
     server, thread = run_loopback_server()
     redirect_uri = f"http://127.0.0.1:{server.server_port}/callback"
@@ -107,6 +116,7 @@ def main():
             "code": server.auth_code,
             "redirect_uri": redirect_uri,
             "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
             "code_verifier": code_verifier,
         },
         timeout=15,
@@ -114,13 +124,24 @@ def main():
     token_resp.raise_for_status()
     tokens = token_resp.json()
 
-    # If OIDC, you typically get an id_token (JWT) + access_token (+ maybe refresh_token)
-    print(json.dumps({k: ("<redacted>" if "token" in k else v) for k, v in tokens.items()}, indent=2))
+    userinfo_resp = requests.get(
+        userinfo_endpoint,
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        timeout=15,
+    )
+    userinfo_resp.raise_for_status()
+    userinfo = userinfo_resp.json()
 
-    # Next steps:
-    # 1) Validate id_token (issuer, audience, signature via JWKS) before trusting identity
-    # 2) Create your local app session/user record
-    # 3) Store refresh_token securely (keyring, encrypted file, etc.)
+    return {
+        "email": userinfo.get("email"),
+        "name": userinfo.get("name"),
+        "sub": userinfo.get("sub"),
+        "access_token": tokens.get("access_token"),
+        "refresh_token": tokens.get("refresh_token"),
+        "id_token": tokens.get("id_token"),
+        "expires_in": tokens.get("expires_in"),
+    }
 
 if __name__ == "__main__":
-    main()
+    result = main()
+    print(f"Signed in! Info: {result}")
