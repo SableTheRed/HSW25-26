@@ -32,7 +32,12 @@ class EntryValuesOut(EntryValues):
     created_at: str
 
 #Connect to db (or create if absent)
-con = sqlite3.connect(DBFOLDER) 
+def get_connection():
+    con = sqlite3.connect(DBFOLDER)
+    con.execute("PRAGMA foreign_keys = ON")
+    return con
+
+con = get_connection()
 cur = con.cursor()
 
 # Create tables if not already present
@@ -44,7 +49,7 @@ con.close()
 
 # create user
 def new_user(user: User):
-    con = sqlite3.connect(DBFOLDER)
+    con = get_connection()
     cur = con.cursor()
     try:
         cur.execute(
@@ -60,7 +65,7 @@ def new_user(user: User):
 
 # create journal entry
 def add_journal_entry(entry: JournalEntry):
-    con = sqlite3.connect(DBFOLDER)
+    con = get_connection()
     cur = con.cursor()
     cur.execute(
         "INSERT INTO journal_entries(user_sub, entry_text) VALUES (?, ?)",
@@ -72,7 +77,7 @@ def add_journal_entry(entry: JournalEntry):
 
 # create entry values
 def add_entry_values(values: EntryValues):
-    con = sqlite3.connect(DBFOLDER)
+    con = get_connection()
     cur = con.cursor()
     cur.execute(
         "INSERT INTO entry_values(journal_entry_no, created_at, happiness, stress, energy, focus, anxiety) VALUES (?, ?, ?, ?, ?, ?)",
@@ -85,7 +90,7 @@ def add_entry_values(values: EntryValues):
 
 # fetch journal entries for a user
 def fetch_journal_entries(user_sub: str):
-    con = sqlite3.connect(DBFOLDER)
+    con = get_connection()
     cur = con.cursor()
     cur.execute(
         "SELECT entry_no, created_at, entry_text FROM journal_entries WHERE user_sub = ?",
@@ -97,7 +102,7 @@ def fetch_journal_entries(user_sub: str):
 
 # fetch entry values for a journal entry
 def fetch_entry_values(entry_no: str):
-    con = sqlite3.connect(DBFOLDER)
+    con = get_connection()
     cur = con.cursor()
     cur.execute(
         "SELECT created_at, happiness, stress, energy, focus, anxiety FROM entry_values WHERE entry_no = ?",
@@ -109,7 +114,7 @@ def fetch_entry_values(entry_no: str):
 
 # fetch user details
 def get_user(sub: str):
-    con = sqlite3.connect(DBFOLDER)
+    con = get_connection()
     cur = con.cursor()
     cur.execute("SELECT SUB, created_at FROM users WHERE SUB=?", (sub,))
     user = cur.fetchone()
@@ -118,7 +123,7 @@ def get_user(sub: str):
 
 # fetch journal entry details
 def get_journal_entry(entry_no: int):
-    con = sqlite3.connect(DBFOLDER)
+    con = get_connection()
     cur = con.cursor()
     cur.execute("SELECT entry_no, user_sub, created_at, entry_text FROM journal_entries WHERE entry=?", (entry_no,))
     entry = cur.fetchone()
@@ -127,7 +132,7 @@ def get_journal_entry(entry_no: int):
 
 # fetch entry values set details
 def get_value_set(value_set_no: int):
-    con = sqlite3.connect(DBFOLDER)
+    con = get_connection()
     cur = con.cursor()
     cur.execute("SELECT value_set, journal_entry_no, created_at, happiness, stress, energy, focus, anxiety FROM entry_values WHERE value_set=?", (value_set_no,))
     value_set = cur.fetchone()
@@ -138,7 +143,7 @@ def get_value_set(value_set_no: int):
 
 # check if user exists
 def user_exists(sub: str):
-    con = sqlite3.connect(DBFOLDER)
+    con = get_connection()
     cur = con.cursor()
     cur.execute("SELECT * FROM users WHERE SUB=?", (sub,))
     user = cur.fetchone()
@@ -147,7 +152,7 @@ def user_exists(sub: str):
 
 # check if journal entry has values set
 def journal_entry_has_values(entry_no: int):
-    con = sqlite3.connect(DBFOLDER)
+    con = get_connection()
     cur = con.cursor()
     cur.execute("SELECT * FROM entry_values WHERE journal_entry_no=?", (entry_no,))
     values = cur.fetchone()
@@ -156,6 +161,49 @@ def journal_entry_has_values(entry_no: int):
 
 
 # updates
+def update_journal_entry(entry_no: int, new_text: str):
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute(
+        "UPDATE journal_entries SET entry_text=? WHERE entry_no=?",
+        (new_text, entry_no),
+    )
+    con.commit()
+    con.close()
+    return True  # Update successful
 
+def update_entry_values(entry_no: int, happiness: int, stress: int, energy: int, focus: int, anxiety: int):
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute(
+        "UPDATE entry_values SET happiness=?, stress=?, energy=?, focus=?, anxiety=? WHERE journal_entry_no=?",
+        (happiness, stress, energy, focus, anxiety, entry_no),
+    )
+    con.commit()
+    con.close()
+    return True  # Update successful
 
 # deletions
+def delete_journal_entry(entry_no: int):
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("DELETE FROM journal_entries WHERE entry_no=?", (entry_no,))
+    con.commit()
+    con.close()
+    return True  # Deletion successful
+
+def delete_entry_values(entry_no: int):
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("DELETE FROM entry_values WHERE journal_entry_no=?", (entry_no,))
+    con.commit()
+    con.close()
+    return True  # Deletion successful
+
+def delete_user(sub: str):
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("DELETE FROM users WHERE SUB=?", (sub,))
+    con.commit()
+    con.close()
+    return True  # Deletion successful
