@@ -10,6 +10,11 @@ Alya Ormon
 # Demo video
 [Video](demo.mp4)
 
+# Features
+- Journaling + sentiment & emotional classification
+- Imrproves decisions using historical emotional data
+- AI Agents recommends actions, plans, and behavioural adjustments
+
 # Instructions
 Navigate into `src` directory.
 ```
@@ -45,5 +50,3 @@ Set environment variables
   export OIDC_CLIENT_ID=""
   export OIDC_CLIENT_SECRET=""
   ```
- 
-
