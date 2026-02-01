@@ -3,6 +3,11 @@ from tkinter import ttk, messagebox
 import threading
 import datetime
 import random
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from db_operations import add_journal_entry, fetch_journal_entries, JournalEntry, new_user, user_exists, User
 
 from auth import login as oidc_login
 
@@ -60,8 +65,9 @@ class BasePage(tk.Frame):
 class JournalPage(BasePage):
     """Journal page."""
 
-    def __init__(self, parent, navigate_callback):
+    def __init__(self, parent, navigate_callback, user_sub=None):
         super().__init__(parent, "Journal", navigate_callback)
+        self.user_sub = user_sub
         self._create_content()
 
     def _create_content(self):
@@ -69,12 +75,48 @@ class JournalPage(BasePage):
         content = tk.Frame(self, bg="#1a1a2e")
         content.pack(fill="both", expand=True, padx=40, pady=(10, 30))
 
+        # Create scrollable container for small screens
+        canvas = tk.Canvas(content, bg="#1a1a2e", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(content, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg="#1a1a2e")
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Enable mouse wheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _on_mousewheel_linux(event):
+            if event.num == 4:
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                canvas.yview_scroll(1, "units")
+
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        canvas.bind_all("<Button-4>", _on_mousewheel_linux)
+        canvas.bind_all("<Button-5>", _on_mousewheel_linux)
+
+        # Update scrollable frame width when canvas resizes
+        def _configure_canvas(event):
+            canvas.itemconfig(canvas_window, width=event.width)
+
+        canvas.bind("<Configure>", _configure_canvas)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
         # New entry section
-        entry_frame = tk.Frame(content, bg="#252542")
-        entry_frame.pack(fill="both", expand=True)
+        entry_frame = tk.Frame(scrollable_frame, bg="#252542")
+        entry_frame.pack(fill="x", expand=False)
 
         entry_inner = tk.Frame(entry_frame, bg="#252542")
-        entry_inner.pack(fill="both", expand=True, padx=30, pady=25)
+        entry_inner.pack(fill="x", expand=False, padx=30, pady=25)
 
         entry_label = tk.Label(
             entry_inner,
@@ -94,9 +136,9 @@ class JournalPage(BasePage):
         )
         entry_sublabel.pack(anchor="w", pady=(0, 20))
 
-        # Text box for journal entry
+        # Text box for journal entry with minimum height
         text_container = tk.Frame(entry_inner, bg="#1a1a2e", padx=2, pady=2)
-        text_container.pack(fill="both", expand=True, pady=(0, 20))
+        text_container.pack(fill="x", pady=(0, 20))
 
         self.entry_text = tk.Text(
             text_container,
@@ -108,9 +150,10 @@ class JournalPage(BasePage):
             padx=15,
             pady=15,
             wrap="word",
-            highlightthickness=0
+            highlightthickness=0,
+            height=12
         )
-        self.entry_text.pack(fill="both", expand=True)
+        self.entry_text.pack(fill="x")
         self.entry_text.insert("1.0", "How are you feeling today?")
         self.entry_text.config(fg="#666")
         self.entry_text.bind("<FocusIn>", self._clear_placeholder)
@@ -131,7 +174,8 @@ class JournalPage(BasePage):
             relief="flat",
             padx=30,
             pady=12,
-            cursor="hand2"
+            cursor="hand2",
+            command=self._save_entry
         )
         submit_btn.pack(side="right")
 
@@ -149,6 +193,30 @@ class JournalPage(BasePage):
         if self.entry_text.get("1.0", "end-1c") == "How are you feeling today?":
             self.entry_text.delete("1.0", "end")
             self.entry_text.config(fg="#eee")
+
+    def _save_entry(self):
+        """Save the journal entry to the database."""
+        text = self.entry_text.get("1.0", "end-1c").strip()
+
+        # Don't save placeholder or empty text
+        if not text or text == "How are you feeling today?":
+            messagebox.showwarning("Empty Entry", "Please write something before saving.")
+            return
+
+        if not self.user_sub:
+            messagebox.showerror("Error", "User not logged in.")
+            return
+
+        try:
+            entry = JournalEntry(user_sub=self.user_sub, entry_text=text)
+            add_journal_entry(entry)
+            messagebox.showinfo("Saved", "Your journal entry has been saved!")
+            # Clear the text area and reset placeholder
+            self.entry_text.delete("1.0", "end")
+            self.entry_text.insert("1.0", "How are you feeling today?")
+            self.entry_text.config(fg="#666")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save entry: {e}")
 
 
 class InsightsPage(BasePage):
@@ -250,30 +318,72 @@ class HistoryPage(BasePage):
     CARD_BG = "#252542"
     CARD_HOVER = "#2f2f52"
 
-    def __init__(self, parent, navigate_callback):
+    def __init__(self, parent, navigate_callback, user_sub=None):
         super().__init__(parent, "History", navigate_callback)
+        self.user_sub = user_sub
         self._create_content()
+
+    def _format_date(self, date_str):
+        """Format database datetime string to display format."""
+        try:
+            dt = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            return dt.strftime("%B %d, %Y")
+        except (ValueError, TypeError):
+            return date_str
+
+    def _is_today(self, date_str):
+        """Check if the date string is today."""
+        try:
+            dt = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            return dt.date() == datetime.date.today()
+        except (ValueError, TypeError):
+            return False
 
     def _create_content(self):
         # Sample journal entries (most recent first)
         sample_entries = [
-            {"date": "January 31, 2026", "preview": "Today was a productive day. I managed to complete all my tasks and even had time for some self-care."},
-            {"date": "January 30, 2026", "preview": "Feeling a bit tired but optimistic about the week ahead. Planning to focus on balance."},
-            {"date": "January 29, 2026", "preview": "Had a great conversation with a friend today. It reminded me how important connections are."},
-            {"date": "January 28, 2026", "preview": "Started a new project at work. Excited about the possibilities and challenges ahead."},
-            {"date": "January 27, 2026", "preview": "Took some time for self-reflection. I realized that I need to prioritize what matters most."},
-            {"date": "January 26, 2026", "preview": "Went for a long walk in the park. Nature always helps me think more clearly."},
-            {"date": "January 25, 2026", "preview": "Challenging day but I learned a lot from the experience. Growth comes from discomfort."},
+            {"date": "January 31, 2026", "preview": "Today was a productive day. I managed to complete all my tasks and even had time for some self-care.", "is_sample": True},
+            {"date": "January 30, 2026", "preview": "Feeling a bit tired but optimistic about the week ahead. Planning to focus on balance.", "is_sample": True},
+            {"date": "January 29, 2026", "preview": "Had a great conversation with a friend today. It reminded me how important connections are.", "is_sample": True},
+            {"date": "January 28, 2026", "preview": "Started a new project at work. Excited about the possibilities and challenges ahead.", "is_sample": True},
+            {"date": "January 27, 2026", "preview": "Took some time for self-reflection. I realized that I need to prioritize what matters most.", "is_sample": True},
+            {"date": "January 26, 2026", "preview": "Went for a long walk in the park. Nature always helps me think more clearly.", "is_sample": True},
+            {"date": "January 25, 2026", "preview": "Challenging day but I learned a lot from the experience. Growth comes from discomfort.", "is_sample": True},
         ]
+
+        # Fetch real entries from database
+        db_entries = []
+        if self.user_sub:
+            try:
+                journal_entries = fetch_journal_entries(self.user_sub)
+                for entry in journal_entries:
+                    db_entries.append({
+                        "date": self._format_date(entry.created_at),
+                        "preview": entry.entry_text[:200] + "..." if len(entry.entry_text) > 200 else entry.entry_text,
+                        "is_sample": False,
+                        "is_today": self._is_today(entry.created_at),
+                        "created_at": entry.created_at
+                    })
+                # Sort by created_at descending (most recent first)
+                db_entries.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+            except Exception:
+                pass  # If fetch fails, just show sample entries
+
+        # Combine: real entries first, then sample entries
+        all_entries = db_entries + sample_entries
 
         # Content container
         content = tk.Frame(self, bg="#1a1a2e")
         content.pack(fill="both", expand=True, padx=40, pady=(10, 30))
 
         # Subtitle
+        real_count = len(db_entries)
+        subtitle_text = f"{len(all_entries)} journal entries"
+        if real_count > 0:
+            subtitle_text += f" ({real_count} saved, {len(sample_entries)} samples)"
         subtitle = tk.Label(
             content,
-            text=f"{len(sample_entries)} journal entries",
+            text=subtitle_text,
             font=("Segoe UI", 12),
             bg="#1a1a2e",
             fg="#888"
@@ -316,7 +426,7 @@ class HistoryPage(BasePage):
         scrollbar.pack(side="right", fill="y")
 
         # Add entries to scrollable frame
-        for i, entry in enumerate(sample_entries):
+        for i, entry in enumerate(all_entries):
             entry_frame = tk.Frame(scrollable_frame, bg=self.CARD_BG, cursor="hand2")
             entry_frame.pack(fill="x", pady=6)
 
@@ -336,7 +446,8 @@ class HistoryPage(BasePage):
             )
             date_label.pack(side="left")
 
-            if i == 0:
+            # Show badges for entry type
+            if entry.get("is_today"):
                 today_badge = tk.Label(
                     header,
                     text="Today",
@@ -347,6 +458,17 @@ class HistoryPage(BasePage):
                     pady=2
                 )
                 today_badge.pack(side="right")
+            elif entry.get("is_sample"):
+                sample_badge = tk.Label(
+                    header,
+                    text="Sample",
+                    font=("Segoe UI", 9),
+                    bg="#666",
+                    fg="#eee",
+                    padx=8,
+                    pady=2
+                )
+                sample_badge.pack(side="right")
 
             preview_label = tk.Label(
                 entry_inner,
@@ -883,6 +1005,10 @@ class WelcomePage(tk.Tk):
 
     def _on_login_success(self, name):
         self.user_name = name
+        # Ensure user exists in database
+        user_sub = self.user_info.get("sub")
+        if user_sub and not user_exists(user_sub):
+            new_user(User(sub=user_sub))
         self._navigate_to("home")
 
     def _navigate_to(self, page):
@@ -899,14 +1025,15 @@ class WelcomePage(tk.Tk):
             self._center_window()
 
         # Show the requested page
+        user_sub = self.user_info.get("sub") if self.user_info else None
         if page == "home":
             new_page = HomePage(self, self.user_name, self._navigate_to)
         elif page == "journal":
-            new_page = JournalPage(self, self._navigate_to)
+            new_page = JournalPage(self, self._navigate_to, user_sub=user_sub)
         elif page == "insights":
             new_page = InsightsPage(self, self._navigate_to)
         elif page == "history":
-            new_page = HistoryPage(self, self._navigate_to)
+            new_page = HistoryPage(self, self._navigate_to, user_sub=user_sub)
         else:
             return
 
