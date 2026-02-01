@@ -93,7 +93,7 @@ class CallbackHandler(BaseHTTPRequestHandler):
     <div class="container">
         <div class="checkmark">&#10004;</div>
         <h1>Signed In Successfully</h1>
-        <p>This window will close automatically...</p>
+        <p>You can now close this window.</p>
     </div>
     <script>
         setTimeout(function() {

@@ -569,12 +569,13 @@ class HomePage(tk.Frame):
         tracker_frame = tk.Frame(parent, bg="#252542")
         tracker_frame.pack(fill="x", pady=(5, 0))
 
-        tracker_inner = tk.Frame(tracker_frame, bg="#252542")
-        tracker_inner.pack(fill="x", padx=20, pady=15)
+        # Center container
+        center_container = tk.Frame(tracker_frame, bg="#252542")
+        center_container.pack(pady=15)
 
         # Header
-        header = tk.Frame(tracker_inner, bg="#252542")
-        header.pack(fill="x", pady=(0, 12))
+        header = tk.Frame(center_container, bg="#252542")
+        header.pack(pady=(0, 12))
 
         title = tk.Label(
             header,
@@ -583,7 +584,7 @@ class HomePage(tk.Frame):
             bg="#252542",
             fg="#eee"
         )
-        title.pack(side="left")
+        title.pack()
 
         # Sample data: days with journal entries (1 = journaled, 0 = no entry)
         # Last 52 weeks worth of data for a full year view
@@ -598,68 +599,78 @@ class HomePage(tk.Frame):
             probability = 0.7 if i < 30 else (0.5 if i < 90 else 0.3)
             activity_data[date] = random.random() < probability
 
-        # Activity grid
-        grid_frame = tk.Frame(tracker_inner, bg="#252542")
-        grid_frame.pack(fill="x")
+        # Activity grid container (centered)
+        grid_frame = tk.Frame(center_container, bg="#252542")
+        grid_frame.pack()
 
-        # Month labels
-        months_frame = tk.Frame(grid_frame, bg="#252542")
-        months_frame.pack(fill="x", pady=(0, 5))
+        # Month labels row
+        months_row = tk.Frame(grid_frame, bg="#252542")
+        months_row.pack(anchor="w", pady=(0, 3))
 
-        # Add spacing for day labels
-        spacer = tk.Label(months_frame, text="", width=3, bg="#252542")
+        # Spacer for day labels column
+        spacer = tk.Label(months_row, text="", width=4, bg="#252542")
         spacer.pack(side="left")
 
         month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-        # Show last 12 months
-        current_month = today.month
-        for i in range(12):
-            month_idx = (current_month - 11 + i) % 12
-            month_label = tk.Label(
-                months_frame,
-                text=month_names[month_idx],
+        # Calculate which months to show based on weeks
+        today = datetime.date.today()
+        days_since_sunday = (today.weekday() + 1) % 7
+        start_date = today - datetime.timedelta(days=days_since_sunday + 52*7)
+
+        # Place month labels at correct positions
+        last_month = -1
+        month_positions = []
+        for week in range(53):
+            week_start = start_date + datetime.timedelta(days=week*7)
+            if week_start.month != last_month:
+                month_positions.append((week, week_start.month))
+                last_month = week_start.month
+
+        # Create month label with proper spacing
+        current_pos = 0
+        for week_num, month in month_positions:
+            gap = week_num - current_pos
+            if gap > 0:
+                spacer = tk.Frame(months_row, bg="#252542", width=gap*13)
+                spacer.pack(side="left")
+                spacer.pack_propagate(False)
+            month_lbl = tk.Label(
+                months_row,
+                text=month_names[month - 1],
                 font=("Segoe UI", 8),
                 bg="#252542",
-                fg="#666",
-                width=4
+                fg="#666"
             )
-            month_label.pack(side="left", padx=(0, 15))
+            month_lbl.pack(side="left")
+            current_pos = week_num + 3  # Account for label width
 
-        # Day labels and grid
-        content_frame = tk.Frame(grid_frame, bg="#252542")
-        content_frame.pack(fill="x")
+        # Day labels and squares row
+        content_row = tk.Frame(grid_frame, bg="#252542")
+        content_row.pack()
 
-        # Day labels (Mon, Wed, Fri)
-        day_labels_frame = tk.Frame(content_frame, bg="#252542")
-        day_labels_frame.pack(side="left", padx=(0, 5))
+        # Day labels (Sun-Sat, showing Mon, Wed, Fri)
+        day_labels_frame = tk.Frame(content_row, bg="#252542")
+        day_labels_frame.pack(side="left", padx=(0, 3))
 
-        for i, day in enumerate(["", "Mon", "", "Wed", "", "Fri", ""]):
+        for i, day in enumerate(["", "M", "", "W", "", "F", ""]):
             lbl = tk.Label(
                 day_labels_frame,
                 text=day,
                 font=("Segoe UI", 7),
                 bg="#252542",
                 fg="#666",
-                width=3,
-                anchor="e"
+                width=2,
+                height=1
             )
-            lbl.pack(anchor="e")
+            lbl.pack()
 
-        # Activity squares
-        squares_frame = tk.Frame(content_frame, bg="#252542")
-        squares_frame.pack(side="left", fill="x", expand=True)
+        # Activity squares grid
+        squares_frame = tk.Frame(content_row, bg="#252542")
+        squares_frame.pack(side="left")
 
-        # Calculate starting point (go back to nearest Sunday, then 52 weeks)
-        days_since_sunday = today.weekday() + 1
-        if days_since_sunday == 7:
-            days_since_sunday = 0
-        start_date = today - datetime.timedelta(days=days_since_sunday + 52*7)
-
-        # Create 53 columns (weeks)
-        cell_size = 10
-        cell_pad = 2
+        cell_size = 11
 
         for week in range(53):
             week_frame = tk.Frame(squares_frame, bg="#252542")
@@ -669,13 +680,10 @@ class HomePage(tk.Frame):
                 current_date = start_date + datetime.timedelta(days=week*7 + day)
 
                 if current_date > today:
-                    # Future dates - empty
                     color = "#252542"
                 elif current_date in activity_data and activity_data[current_date]:
-                    # Journaled - green
                     color = "#4ecca3"
                 else:
-                    # No entry - dark
                     color = "#1a1a2e"
 
                 cell = tk.Frame(
@@ -687,9 +695,20 @@ class HomePage(tk.Frame):
                 cell.pack(pady=1)
                 cell.pack_propagate(False)
 
-        # Legend
-        legend_frame = tk.Frame(tracker_inner, bg="#252542")
-        legend_frame.pack(fill="x", pady=(10, 0))
+        # Legend row (centered)
+        legend_frame = tk.Frame(center_container, bg="#252542")
+        legend_frame.pack(pady=(12, 0))
+
+        # Stats on left
+        total_entries = sum(1 for v in activity_data.values() if v)
+        stats_label = tk.Label(
+            legend_frame,
+            text=f"{total_entries} entries in the last year",
+            font=("Segoe UI", 9),
+            bg="#252542",
+            fg="#888"
+        )
+        stats_label.pack(side="left", padx=(0, 30))
 
         less_label = tk.Label(
             legend_frame,
@@ -715,17 +734,6 @@ class HomePage(tk.Frame):
         )
         more_label.pack(side="left", padx=(3, 0))
 
-        # Stats on the right
-        total_entries = sum(1 for v in activity_data.values() if v)
-        stats_label = tk.Label(
-            legend_frame,
-            text=f"{total_entries} entries in the last year",
-            font=("Segoe UI", 9),
-            bg="#252542",
-            fg="#888"
-        )
-        stats_label.pack(side="right")
-
     def _navigate(self, page):
         if self.navigate_callback:
             self.navigate_callback(page)
@@ -735,7 +743,7 @@ class WelcomePage(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("InsideOut")
-        self.geometry("500x400")
+        self.geometry("800x600")
         self.configure(bg="#1a1a2e")
         self.resizable(False, False)
 
@@ -886,7 +894,7 @@ class WelcomePage(tk.Tk):
         if not hasattr(self, '_navigated'):
             self._navigated = True
             self.geometry("900x700")
-            self.minsize(850, 650)
+            self.minsize(900, 750)
             self.resizable(True, True)
             self._center_window()
 
