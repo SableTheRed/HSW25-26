@@ -1,5 +1,4 @@
 # Inside Out!
-*Insert punchy tagline here*
 
 # Team Members
 Anya Morris  
@@ -7,6 +6,9 @@ Harry Taylor
 Emre Acarsoy  
 Isobel Ryder  
 Alya Ormon  
+
+# Demo video
+[Video](demo.mp4)
 
 # Instructions
 Navigate into `src` directory.

@@ -8,6 +8,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db_operations import add_journal_entry, fetch_journal_entries, JournalEntry, new_user, user_exists, User
+from gpt_wrapper import Wrapper
 
 from auth import login as oidc_login
 
@@ -222,9 +223,14 @@ class JournalPage(BasePage):
 class InsightsPage(BasePage):
     """Insights page."""
 
-    def __init__(self, parent, navigate_callback):
+    def __init__(self, parent, navigate_callback, user_sub=None):
         super().__init__(parent, "Insights", navigate_callback)
+        self.user_sub = user_sub
+        self.patterns_frame = None
+        self.loading_label = None
         self._create_content()
+        # Fetch insights in background
+        self._fetch_insights()
 
     def _create_content(self):
         # Content container
@@ -239,10 +245,19 @@ class InsightsPage(BasePage):
         stats_frame.grid_columnconfigure(1, weight=1, uniform="stat")
         stats_frame.grid_columnconfigure(2, weight=1, uniform="stat")
 
+        # Calculate real stats from database
+        total_entries = 0
+        if self.user_sub:
+            try:
+                entries = fetch_journal_entries(self.user_sub)
+                total_entries = len(entries)
+            except Exception:
+                pass
+
         stats = [
             ("7", "Day Streak", "#4ecca3"),
-            ("23", "Total Entries", "#4361ee"),
-            ("85%", "Positive Days", "#f9c74f"),
+            (str(total_entries), "Total Entries", "#4361ee"),
+            ("--", "Positive Days", "#f9c74f"),
         ]
 
         for i, (value, label, color) in enumerate(stats):
@@ -273,21 +288,90 @@ class InsightsPage(BasePage):
         # Insights section
         insights_label = tk.Label(
             content,
-            text="Recent Patterns",
+            text="AI Insights",
             font=("Segoe UI", 16, "bold"),
             bg="#1a1a2e",
             fg="#eee"
         )
         insights_label.pack(anchor="w", pady=(20, 15))
 
-        patterns = [
-            ("You tend to feel more positive on weekends", "\u2605"),
-            ("Morning journaling correlates with better mood", "\u263C"),
-            ("Exercise days show 40% more positive entries", "\u2665"),
-        ]
+        # Container for patterns (will be populated by LLM)
+        self.patterns_frame = tk.Frame(content, bg="#1a1a2e")
+        self.patterns_frame.pack(fill="both", expand=True)
 
-        for text, icon in patterns:
-            pattern_frame = tk.Frame(content, bg="#252542")
+        # Loading indicator
+        self.loading_label = tk.Label(
+            self.patterns_frame,
+            text="Analyzing your journal entries...",
+            font=("Segoe UI", 12),
+            bg="#1a1a2e",
+            fg="#888"
+        )
+        self.loading_label.pack(pady=20)
+
+    def _fetch_insights(self):
+        """Fetch insights from LLM in background thread."""
+        thread = threading.Thread(target=self._get_llm_insights, daemon=True)
+        thread.start()
+
+    def _get_llm_insights(self):
+        """Get insights from the LLM based on journal entries."""
+        try:
+            # Fetch journal entries
+            if not self.user_sub:
+                self.after(0, self._show_error, "Please log in to see insights.")
+                return
+
+            entries = fetch_journal_entries(self.user_sub)
+            if not entries:
+                self.after(0, self._show_error, "No journal entries yet. Start journaling to get personalized insights!")
+                return
+
+            # Prepare entries for LLM
+            entries_text = "\n\n".join([
+                f"[{entry.created_at}]: {entry.entry_text}"
+                for entry in entries[:10]  # Limit to last 10 entries
+            ])
+
+            # Create wrapper with insights-focused system prompt
+            wrapper = Wrapper(
+                system_prompt="""You are an empathetic wellness assistant analyzing journal entries.
+                Provide 3-4 brief, supportive insights about patterns you notice in the user's emotional state,
+                habits, or wellbeing. Each insight should be one sentence. Be encouraging and constructive.
+                Format your response as a simple list with each insight on a new line starting with a dash (-).
+                Do not include any other text or explanations."""
+            )
+
+            # Get insights from LLM
+            response = wrapper.send(f"Analyze these journal entries and provide insights:\n\n{entries_text}")
+
+            # Parse response into individual insights
+            insights = []
+            for line in response.strip().split("\n"):
+                line = line.strip()
+                if line.startswith("-"):
+                    line = line[1:].strip()
+                if line:
+                    insights.append(line)
+
+            if insights:
+                self.after(0, self._display_insights, insights)
+            else:
+                self.after(0, self._show_error, "Could not generate insights. Please try again later.")
+
+        except Exception as e:
+            self.after(0, self._show_error, f"Could not load insights: {str(e)}")
+
+    def _display_insights(self, insights):
+        """Display the LLM-generated insights."""
+        # Clear loading label
+        if self.loading_label:
+            self.loading_label.destroy()
+
+        icons = ["\u2605", "\u263C", "\u2665", "\u2728"]  # Star, Sun, Heart, Sparkles
+
+        for i, text in enumerate(insights[:4]):  # Limit to 4 insights
+            pattern_frame = tk.Frame(self.patterns_frame, bg="#252542")
             pattern_frame.pack(fill="x", pady=5)
 
             inner = tk.Frame(pattern_frame, bg="#252542")
@@ -295,7 +379,7 @@ class InsightsPage(BasePage):
 
             icon_label = tk.Label(
                 inner,
-                text=icon,
+                text=icons[i % len(icons)],
                 font=("DejaVu Sans", 18),
                 bg="#252542",
                 fg="#4ecca3"
@@ -307,9 +391,16 @@ class InsightsPage(BasePage):
                 text=text,
                 font=("Segoe UI", 12),
                 bg="#252542",
-                fg="#eee"
+                fg="#eee",
+                wraplength=600,
+                justify="left"
             )
-            text_label.pack(side="left")
+            text_label.pack(side="left", fill="x", expand=True)
+
+    def _show_error(self, message):
+        """Show an error or info message."""
+        if self.loading_label:
+            self.loading_label.config(text=message)
 
 
 class HistoryPage(BasePage):
@@ -1031,7 +1122,7 @@ class WelcomePage(tk.Tk):
         elif page == "journal":
             new_page = JournalPage(self, self._navigate_to, user_sub=user_sub)
         elif page == "insights":
-            new_page = InsightsPage(self, self._navigate_to)
+            new_page = InsightsPage(self, self._navigate_to, user_sub=user_sub)
         elif page == "history":
             new_page = HistoryPage(self, self._navigate_to, user_sub=user_sub)
         else:
