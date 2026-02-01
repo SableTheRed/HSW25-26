@@ -12,7 +12,7 @@ class User(BaseModel):
 class JournalEntry(BaseModel):
         journal_entry_no: Optional[int] = None
         user_sub: Optional[str] = None
-        created_at: Optional[int] = None
+        created_at: Optional[str] = None
         entry_text: Optional[str] = None
 
 class EntryValues(BaseModel):
